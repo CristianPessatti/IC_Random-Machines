@@ -1,0 +1,22 @@
+RMSE                    Root Mean Squared Error (RMSE) Function
+bolsafam                Bolsa Família Dataset
+brier_score             Brier Score function
+ionosphere              Ionosphere Dataset
+predict.rm_class        Prediction function for the rm_class_model
+predict.rm_reg          Prediction function for the rm_reg_model
+randomMachines          Random Machines
+rm_class-class          S4 class for RM classification
+rm_reg-class            S4 class for RM regression
+sim_class               Generate a binary classification data set from
+                        normal distribution
+sim_reg1                Simulation for a regression toy examples from
+                        Random Machines Regression 1
+sim_reg2                Simulation for a regression toy examples from
+                        Random Machines Regression 2
+sim_reg3                Simulation for a regression toy examples from
+                        Random Machines Regression 3
+sim_reg4                Simulation for a regression toy examples from
+                        Random Machines Regression 3
+sim_reg5                Simulation for a regression toy examples from
+                        Random Machines Regression 3
+whosale                 Wholesale Dataset

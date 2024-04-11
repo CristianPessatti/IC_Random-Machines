@@ -6,6 +6,10 @@ source('rm_new.R')
 kernels = list(vanilladot(), rbfdot(1), laplacedot())
 n <- 100
 
+iris %>% 
+  ggplot(aes(x=Sepal.Width, y=Sepal.Length, colour=Species)) +
+    geom_point()
+
 accs <- data.frame(random_machines = numeric(n),
              svm_vanilla = numeric(n),
              svm_rbf = numeric(n),
@@ -17,7 +21,7 @@ for(i in 1:n) {
   x_treino <- iris[idx,]
   x_teste <- iris[-idx,]
   
-  ajuste_rm <- rm_multiclass(Species~., x_train=x_treino, B=50, C=1, beta=2)
+  ajuste_rm <- rm_multiclass(Species~., x_train=x_treino, B=25, C=1, beta=2)
   accs[i,1] <- predict(ajuste_rm, newdata=x_teste) %>% 
     Metrics::accuracy(actual = x_teste$Species)
 
@@ -38,3 +42,18 @@ for(i in 1:n) {
 
 accs
 boxplot(accs)
+
+
+# RANDOM-MACHINES VS. RM_NEW
+
+t1 <- Sys.time()
+ajuste <- rm_multiclass(Species~., x_train=iris, B=25, C=1, beta=2)
+t2 <- Sys.time()
+t2-t1
+
+library(randomMachines)
+t3 <- Sys.time()
+ajuste <- randomMachines(Species~., train=iris, B=25, cost=1, beta=2)
+t4 <- Sys.time()
+
+t4-t3

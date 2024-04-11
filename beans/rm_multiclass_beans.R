@@ -4,3 +4,7 @@ library(tidyverse)
 source('rm_new.R')
 beans <- openxlsx::read.xlsx("beandata.xlsx") %>%
   mutate(Class = factor(Class, ordered = FALSE))
+
+dim(beans)
+
+unique(beans$Class)

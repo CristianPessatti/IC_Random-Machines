@@ -12,14 +12,39 @@ bootstrap_rep <- function(df, B) {
   return(s)
 }
 
+remove_element <- function(lst, idx) {
+  lst[idx] <- NULL
+  return(lst)
+}
+
+factor_to_dataframe <- function(f) {
+  col_names <- levels(f)
+  r <- matrix(F, ncol = length(col_names), nrow = length(f), 
+              dimnames = list(NULL, col_names)) %>% as.data.frame()
+  sapply(1:length(f), FUN = function(x){
+    for(i in 1:length(col_names)) {
+      if(f[x] == col_names[i]) {
+        r[x,i] <<- TRUE; break
+      }
+    }
+  })
+  return(r)
+}
+
+mcc_custom <- function(actual, predicted) {
+  df_actual <- factor_to_dataframe(actual)
+  df_predicted <- factor_to_dataframe(predicted)
+  
+  MCC <- mltools::mcc(preds = df_predicted, actuals = df_actual)
+  return(MCC)
+}
+
 lambda_class <- function(loss_vector) {
-  log((loss_vector/(1-loss_vector))) / sum(log((loss_vector/(1-loss_vector))))
+  lambda <- (log(loss_vector) / (1 - loss_vector))/ 
+               (sum(log(loss_vector) / (1 - loss_vector)))
 }
 
-omega_class <- function(loss_vector) {
-  1 / ((1 - loss_vector)^2)
-}
-
+#USAR UMCC
 omega_exp <- function(loss_vector, beta){
   exp(loss_vector*beta)/sum(exp(loss_vector*beta))
 }
@@ -43,6 +68,37 @@ class_decode <- function(encoding, encoded_classes){
 
 # IMPORTANDO KERNLAB MANUALMENTE:
 require(kernlab)
+
+gen_cv <- function(data, Kfolds, ...){
+  size_Kfolds <- nrow(data)/Kfolds
+  idx <- 1
+  result <- lapply(1:Kfolds, FUN=function(k) {
+    idx_end <- k + size_Kfolds - 1
+    full_out <- data[idx:idx_end,]
+  })
+  return(result)
+}
+
+gen_cv_data <- function(data, folds, label_variable){
+  #separating label indexes to guarantee balanced folds
+  fold_n <- ceiling(nrow(data)/folds)
+  size_folds <- numeric(folds)
+  fold_indexes <- vector(mode = "list", length = folds)
+  classes <- levels(data[, label_variable])
+  classes_indexes <- vector(mode = "list", 
+                            length = length(classes))
+  for(i in 1:length(classes)){
+    class_indexes <- which(data[, label_variable] == classes[i])
+    classes_indexes[[i]] <- split(class_indexes, cut(seq_along(class_indexes),
+                                                     folds, labels = FALSE))
+    sapply(X = 1:folds, function(x){
+      fold_indexes[[x]] <<- rbind(fold_indexes[[x]], 
+                                  data[classes_indexes[[i]][[x]],])
+    })
+  }
+  return(fold_indexes)
+}
+
 rm_multiclass <- function(formula,
                           x_train,
                           x_valid = NULL,
@@ -51,7 +107,8 @@ rm_multiclass <- function(formula,
                           C = 1,
                           epsilon = 0.1,
                           beta = 2,
-                          loss_function = Metrics::accuracy)
+                          K = 5,
+                          loss_function = mcc_custom)
 {
 
   if(is.null(x_valid)){ validation_set <- x_train } else { validation_set <- x_valid }
@@ -74,7 +131,22 @@ rm_multiclass <- function(formula,
     do.call(loss_function, list(actual = validation_set[, target], 
                                 predicted = target_hat))
   })
-  lambdas <- omega_exp(loss_step1, beta)
+  
+  folds <- gen_cv_data(validation_set, K, 'Species')
+  
+  result <- sapply(1:length(models), FUN = function(i) {
+    sapply(1:K, FUN = function(k){
+      f_test <- folds[[k]]
+      f_train <- do.call(rbind, remove_element(folds, k))
+      f_fit <- kernlab::ksvm(form, data = f_train, kernel = kernels[[i]])
+      f_hat <- kernlab::predict(f_fit, f_test)
+      return(do.call(loss_function, list(actual = f_test[, target], 
+                                             predicted = f_hat)))
+    })
+  })
+  
+  lambdas <- omega_exp(colMeans(result), beta)
+  print(lambdas)
   
   bs_kernels <- sample(1:length(kernels), B, prob = lambdas, replace = TRUE)
   bs_samples <- bootstrap_rep(x_train, B)
@@ -97,11 +169,11 @@ rm_multiclass <- function(formula,
                          bs_samples = bs_samples,
                          bs_models = bs_models,
                          weights = omega_exp(loss_bs, beta))
-  attr(ensemble_model, "class") <- "rm_class"
+  attr(ensemble_model, "class") <- "rm_class2"
   return(ensemble_model)
 }
 
-rm_class <- setClass("rm_class",
+rm_class2 <- setClass("rm_class2",
   slots = list(train = "data.frame",
                target = "character",
               kernel_lambdas = "numeric",
@@ -109,7 +181,7 @@ rm_class <- setClass("rm_class",
               bs_samples = "list",
               bs_models = "list")
 )
-predict.rm_class <- function(rm_model, newdata){
+predict.rm_class2 <- function(rm_model, newdata){
   labels <- rm_model$train[, rm_model$target]
   encoding_df <- data.frame(x = levels(labels), y = 1:length(levels(labels)))
 
